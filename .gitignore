@@ -1,0 +1,18 @@
+# 密钥与本地文件
+.env
+*.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 向量库与数据库（后续里程碑生成）
+*.db
+chroma/
+data/chroma/
+
+# 编辑器
+.vscode/
+.idea/
