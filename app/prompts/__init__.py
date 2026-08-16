@@ -11,4 +11,4 @@ def load_prompt(filename: str) -> str:
     return file_path.read_text(encoding="utf-8")
 
 # 预加载系统提示词
-system_prompt = load_prompt("SystemPrompt.md")
+system_prompt = load_prompt("system_prompt.txt")
