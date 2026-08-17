@@ -13,6 +13,9 @@ venv/
 chroma/
 data/chroma/
 
+# embedding 模型缓存（fastembed 下载）
+data/embedding_cache/
+
 # 编辑器
 .vscode/
 .idea/

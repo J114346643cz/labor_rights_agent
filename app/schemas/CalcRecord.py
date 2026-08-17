@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 from sqlmodel import Field, SQLModel
 
@@ -10,7 +11,7 @@ class CalcRecord(SQLModel, table=True):
 
     __tablename__ = "calc_records"
 
-    id: str = Field(primary_key=True)
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     session_id: str = Field(index=True)
     tool: str
     params: str = "{}"           # JSON 字符串：入参
