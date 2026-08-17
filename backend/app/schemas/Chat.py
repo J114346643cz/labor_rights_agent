@@ -14,6 +14,8 @@ class Source(BaseModel):
 
 class ChatResponse(BaseModel):
     session_id:Optional[str] = None
+    query:str
+    rewrite_query:str
     reply:str
     sources:List[Source]=[]
     tool_calls:List[str]=[]

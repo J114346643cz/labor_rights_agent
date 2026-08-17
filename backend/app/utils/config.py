@@ -30,9 +30,23 @@ class Settings(BaseSettings):
     collection_name:str = "law_kb"
     # embedding 模型名（fastembed 的 BGE 中文模型，维度 512）
     embedding_model: str = "BAAI/bge-small-zh-v1.5"
+    # embedding 模型缓存目录（固定在工作区内，避免写 C 盘系统目录）
+    embedding_cache_dir: str = str(BASE_DIR / "data" / "embedding_cache")
 
     # 默认检索条数
     rag_top_k: int = 5
+
+    # M3.5：query 改写是否启用 LLM 兜底层（词典层始终启用；False 时只走词典）
+    rag_use_llm_rewrite: bool = True
+
+    # Agent 循环最大轮数（防死循环：模型一直请求工具不回答）
+    max_agent_turns:int = 5
+
+    # -----------计算加班费------------------
+    # 国家法定的月平均计薪天数。
+    month_days : float = 21.75
+    # 国家法定的标准工作日小时数
+    hours_per_day :int = 8
 
     # 告诉BaseSettings去哪里读环境变量、用什么编码读取文件
     model_config = {

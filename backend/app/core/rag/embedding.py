@@ -1,6 +1,11 @@
+import os
+
 from fastembed import TextEmbedding
 
 from app.utils.config import settings
+
+# 重要：必须在导入 fastembed 前设置缓存目录，保证模型下载到工作区
+os.environ.setdefault("FASTEMBED_CACHE_PATH", settings.embedding_cache_dir)
 
 _model :TextEmbedding | None = None
 
