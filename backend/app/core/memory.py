@@ -17,13 +17,13 @@ def get_session(db, session_id):
 
 
 def add_message(
-        db:DBSession,
-        session_id:str,
-        role:str,
-        content:str,
-        sources: str = "[]",
-        calc_result: str = "",
-)-> Message:
+    db: DBSession,
+    session_id: str,
+    role: str,
+    content: str,
+    sources: str = "[]",
+    calc_result: str = "",
+) -> Message:
     msg = Message(
         id=str(uuid.uuid4()),
         session_id=session_id,

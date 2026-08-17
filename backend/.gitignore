@@ -16,3 +16,4 @@ data/chroma/
 # 编辑器
 .vscode/
 .idea/
+.claude/
