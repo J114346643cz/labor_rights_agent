@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     # 截断策略：最多保留最近 10 轮（1 轮 = 1 条 user + 1 条 assistant）
     max_history_turns:int = 10
 
+
     # Chroma 向量库持久化目录
     chroma_dir: str = str(BASE_DIR / "data" / "chroma")
     # 法条原始文档目录（M0 数据）
@@ -41,12 +42,19 @@ class Settings(BaseSettings):
 
     # Agent 循环最大轮数（防死循环：模型一直请求工具不回答）
     max_agent_turns:int = 5
+    # LangGraph 内置步数上限（对应手写版的 MAX_TURNS）
+    max_agent_turns_langgraph:int = 8
 
     # -----------计算加班费------------------
     # 国家法定的月平均计薪天数。
     month_days : float = 21.75
     # 国家法定的标准工作日小时数
     hours_per_day :int = 8
+
+    # ----  Agent 配置 ----
+    # True=LangGraph 版（正式）；False=手写 ReAct 版（原理教学/对比）
+    agent_use_langgraph: bool = True
+
 
     # 告诉BaseSettings去哪里读环境变量、用什么编码读取文件
     model_config = {
