@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException,status
 from fastapi.params import Depends
 from sqlmodel import Session as DBSession
 from sqlmodel import select
@@ -8,7 +8,7 @@ from sqlmodel import select
 from app.core.db import get_db
 from app.core.memory import create_session, get_session, get_history_messages
 from app.schemas.Chat import Source
-from app.schemas.Message import MessageOut
+from app.schemas.Message import MessageOut, Message
 from app.schemas.Session import SessionOut, SessionCreate, Session
 
 router = APIRouter(prefix="/api/agent",tags=["sessions"])
@@ -53,4 +53,26 @@ def get_messages(session_id: str, db: DBSession = Depends(get_db)) -> list[Messa
             )
         )
     return result
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_session(
+    session_id: str,
+    db: DBSession = Depends(get_db)
+) -> None:
+    """根据会话ID删除整个会话及其所有历史消息。"""
+    # 1. 检查会话是否存在
+    session = get_session(db, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    # 2. 删除该会话下的所有消息（先删子表，避免外键约束）
+    stmt = select(Message).where(Message.session_id == session_id)
+    messages = db.exec(stmt).all()
+    for msg in messages:
+        db.delete(msg)
+
+    # 3. 删除会话本身
+    db.delete(session)
+    db.commit()
 

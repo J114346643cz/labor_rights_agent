@@ -9,10 +9,11 @@
 import sys
 from pathlib import Path
 
+from app.core.rag.query_rewrite import rewrite_query
+from app.core.rag.retriever import retrieve
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.rag.query_rewrite import rewrite_query
-from app.rag.retriever import retrieve
 
 # 口语测试问题 → 期望命中的条款号集合（来自 eval_cases 的知识）
 TEST_CASES = [

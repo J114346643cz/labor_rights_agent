@@ -95,6 +95,7 @@ def chat_endpoint(req:ChatRequest,db:DBSession = Depends(get_db))->ChatResponse:
         # s=Source(law="劳动合同法", article=47, text="第47条 经济补偿......")
         # d = {"law":"劳动合同法","article":47,"text":"第47条 经济补偿......"} 普通字典
         sources=json.dumps([s.model_dump() for s in sources],ensure_ascii=False),
+        calc_result=json.dumps({"tools": called_tools}, ensure_ascii=False),
     )
     return ChatResponse(session_id=session.id,query=req.message,rewrite_query=rewrite_message,reply=reply, sources=sources,tool_calls=called_tools)
 
