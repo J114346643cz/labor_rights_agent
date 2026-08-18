@@ -9,9 +9,10 @@
 import sys
 from pathlib import Path
 
+from app.core.rag.retriever import retrieve
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.rag.retriever import retrieve
 
 # 测试问题：覆盖不同知识主题
 TEST_QUERIES = [
