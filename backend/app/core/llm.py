@@ -54,3 +54,25 @@ def chat_with_tools(
     return resp.choices[0].message
 
 
+def stream_chat_with_tools(
+        messages:list[dict[str,Any]],
+        tools:list[dict],
+):
+    """流式调用大模型（OpenAI 兼容协议，stream=True）。
+
+    返回原始 chunk 迭代器，每个 chunk 里可能含：
+    - delta.content：最终回答的文本增量（逐字）
+    - delta.tool_calls：工具调用增量（按 index 累加 id/name/arguments）
+
+    由调用方（streaming.py）负责把 content 增量透传给前端、
+    把 tool_calls 增量按 index 合并成完整调用。
+    """
+    return get_client().chat.completions.create(
+        model=settings.deepseek_model,
+        messages=messages,
+        tools=tools,
+        temperature=0.2,  # RAG场景改成0.2，不要0.7，减少幻觉
+        stream=True,  # 开启流式：逐 chunk 返回，而不是一次性返回完整响应
+    )
+
+

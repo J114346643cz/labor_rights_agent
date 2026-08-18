@@ -1,0 +1,75 @@
+/* ============================================================
+   全局样式与设计令牌 —— 主题:维权档案
+   墨蓝(可信) + 朱砂红(印章/维权) + 纸白(档案纸感)
+   ============================================================ */
+
+/* ---- 设计令牌 ---- */
+:root {
+  /* 墨蓝:主色,用于侧栏深底 / 用户气泡 / 正文标题 */
+  --ink-900: #1e2a3a;
+  --ink-700: #3d4c63;
+  /* 朱砂红:签名色,用于徽标 / 引注条 / 发送按钮 */
+  --seal-600: #b23a2e;
+  --seal-soft: #f4e3e0;
+  /* 纸白:页面底色(档案纸,带一丝暖但不是模板奶油) */
+  --paper: #f6f4ef;
+  --card: #ffffff;
+  /* 中性色:分割线 / 弱化文字 */
+  --line: #e2dfd7;
+  --muted: #7a828e;
+  /* 正文黑 */
+  --text: #2b2f36;
+  /* 法条原文用仿宋(法律文书的惯用字体) */
+  --font-law: 'STFangsong', 'FangSong', 'SimSun', serif;
+}
+
+/* 盒模型统一为 border-box(宽高含内边距与边框) */
+* {
+  box-sizing: border-box;
+}
+
+/* 页面基础:无外边距,铺满全屏 */
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei',
+    Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+}
+
+/* 全局滚动条美化(浅色细条) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+/* 滚动条滑块 */
+::-webkit-scrollbar-thumb {
+  background: #d6d3cb;
+  border-radius: 3px;
+}
+
+/* 滚动条滑块悬停变深 */
+::-webkit-scrollbar-thumb:hover {
+  background: #bfbbb0;
+}
+
+/* 聚焦可见性(键盘可达性):全局焦点描边 */
+:focus-visible {
+  outline: 2px solid var(--seal-600);
+  outline-offset: 2px;
+}
+
+/* 尊重"减少动态效果"偏好:关闭打字机光标闪烁等动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

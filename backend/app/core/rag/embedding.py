@@ -13,7 +13,8 @@ def get_embedding_model() ->TextEmbedding:
     global _model
     if _model is None:
         _model = TextEmbedding(model_name=settings.embedding_model)
-        return _model
+    # 注意:if 分支外必须有 return,否则 _model 已加载后本函数会返回 None(原有 bug)
+    return _model
 
 
 def embed_texts(texts :list[str]) ->list[list[float]]:

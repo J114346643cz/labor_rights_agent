@@ -1,22 +1,46 @@
-# 密钥与本地文件
+# ---- 密钥：绝不入库 ----
 .env
+*.env
 *.local
+!.env.example
 
-# Python
+# ---- Python ----
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
+.mypy_cache/
 
-# 向量库与数据库（后续里程碑生成）
+# ---- 本地数据/数据库/向量库 ----
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 chroma/
 data/chroma/
-
-# embedding 模型缓存（fastembed 下载）
 data/embedding_cache/
 
-# 编辑器
-.vscode/
+# ---- 日志 ----
+*.log
+logs/
+
+# ---- IDE ----
 .idea/
+.vscode/
+*.swp
+
+# ---- 前端（Node）----
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ---- 本地 npm 缓存（本沙箱环境）----
+.npm-cache/
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- 工具配置 ----
 .claude/

@@ -1,11 +1,14 @@
 # M1实现单次对话P145 -> M2实现多轮对话（10轮）P146 -> M3rag P139 -> M3.5query改写 P37
 # M4tools工具调用 P147 -> M5 手写ReAct+LangGraph P148
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.agent.graph import run_langgraph_agent
 from app.agent.react_loop import run_react_loop
+from app.agent.streaming import run_streaming_agent
 from app.core import llm
 from app.core.db import get_db
 from app.core.rag.query_rewrite import rewrite_query
@@ -15,6 +18,9 @@ from sqlmodel import Session as DBSession
 from app.core import memory
 
 from app.utils.config import settings
+
+# 日志记录器（与 main.py 共用同一个名字）
+logger = logging.getLogger("labor_agent")
 
 router = APIRouter(prefix="/api/agent",tags=['agent'])
 
@@ -98,4 +104,122 @@ def chat_endpoint(req:ChatRequest,db:DBSession = Depends(get_db))->ChatResponse:
         calc_result=json.dumps({"tools": called_tools}, ensure_ascii=False),
     )
     return ChatResponse(session_id=session.id,query=req.message,rewrite_query=rewrite_message,reply=reply, sources=sources,tool_calls=called_tools)
+
+
+def _sse_event(event: str, data: dict) -> str:
+    """把一个 SSE 事件序列化成文本（event + data 两行，空行结尾）。
+
+    参数：
+    - event: 事件类型（session / tool / delta / done / error）
+    - data: 事件负载（会被 json.dumps 序列化，ensure_ascii=False 保留中文）
+    返回：形如 "event: delta\ndata: {"text": "你"}\n\n" 的 SSE 文本块
+    """
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _stream_events(
+    messages: list[dict],
+    session_id: str,
+    db: DBSession,
+    sources: list[Source],
+    rewrite_query: str,
+):
+    """SSE 事件生成器：跑流式 Agent，把中间产物逐事件推给前端。
+
+    事件顺序：
+    1. session 事件：会话 ID + 改写后的检索词（前端据此创建/定位会话）
+    2. tool 事件（若有工具调用）：正在调用 XX 工具（前端显示徽标）
+    3. delta 事件（最终回答阶段）：回答文本增量（前端实现打字机效果）
+    4. done 事件：法条引用 sources + 工具名列表（回答已入库）
+    5. error 事件（异常时）：错误提示，避免流断了用户还不知道
+
+    参数：
+    - messages: 拼好历史的对话列表（含 system + RAG 上下文）
+    - session_id: 会话 ID
+    - db: 数据库会话（写用户/助手消息与 CalcRecord 留痕）
+    - sources: RAG 检索到的法条引用列表
+    - rewrite_query: query 改写结果（session 事件里带给前端）
+    """
+    # 1. 会话事件（放在最前，前端一拿到就能创建会话、立即切换侧栏）
+    yield _sse_event("session", {"session_id": session_id, "rewrite_query": rewrite_query})
+
+    # 流式累积回答全文与工具名（done 事件 + 入库时使用）
+    reply_parts: list[str] = []
+    called_tools: list[str] = []
+
+    try:
+        # 2-3. 跑流式 Agent 主循环，把 delta/tool 事件透传给前端
+        for ev in run_streaming_agent(messages, session_id, db):
+            if ev["type"] == "delta":
+                # 文本增量：累加进全文，同时透传
+                reply_parts.append(ev["text"])
+                yield _sse_event("delta", {"text": ev["text"]})
+            elif ev["type"] == "tool":
+                # 工具调用：记录工具名，同时透传
+                called_tools.append(ev["name"])
+                yield _sse_event("tool", {"name": ev["name"]})
+
+        # 4. 回答入库（sources / calc_result 存 JSON 字符串，与 /chat 一致）
+        memory.add_message(
+            db,
+            session_id,
+            role="assistant",
+            content="".join(reply_parts),
+            sources=json.dumps([s.model_dump() for s in sources], ensure_ascii=False),
+            calc_result=json.dumps({"tools": called_tools}, ensure_ascii=False),
+        )
+
+        # 5. 结束事件：法条引用 + 工具名列表
+        yield _sse_event(
+            "done",
+            {
+                "sources": [s.model_dump() for s in sources],
+                "tool_calls": called_tools,
+            },
+        )
+    except Exception:
+        # 流式中途出错：记录日志并下发 error 事件，不让前端以为还在生成
+        logger.exception("流式聊天异常 session_id=%s", session_id)
+        yield _sse_event("error", {"message": "服务内部错误，请稍后重试或换个说法。"})
+
+
+@router.post("/chat/stream")
+def chat_stream_endpoint(req: ChatRequest, db: DBSession = Depends(get_db)) -> StreamingResponse:
+    """SSE 流式聊天（前端打字机效果用）。
+
+    与 /chat 的区别：回答不是一次性返回，而是通过 SSE 逐字推送，
+    且工具调用（tool 事件）与结束信息（done 事件）也是事件流的一部分。
+    前端用 fetch + ReadableStream 消费（EventSource 不支持 POST body）。
+
+    请求体：ChatRequest（session_id 可选，message 必填）——与 /chat 完全一致
+    """
+    # 1. 确定会话（新建或复用）——与 /chat 相同的逻辑
+    if req.session_id is None:
+        session = memory.create_session(db, title=_make_title(req.message))
+    else:
+        session = memory.get_session(db, req.session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="会话不存在")
+    # 2. 用户消息入库
+    memory.add_message(db, session.id, role="user", content=req.message)
+
+    # 3. RAG 检索：把相关法条 context 拼进 system prompt
+    context, sources, rewrite_message = _retrieve_and_build_context(req.message)
+
+    # 4. 拼历史（system 带 RAG 上下文）→ 交给事件生成器跑流式 Agent
+    messages: list[dict] = memory.build_messages(db, session.id)
+    if context:
+        messages[0]["content"] = messages[0]["content"] + RAG_SYSTEM_HINT + "\n\n" + context
+
+    # 5. 返回 SSE 流式响应（事件生成器在响应发送时才真正执行）
+    return StreamingResponse(
+        _stream_events(messages, session.id, db, sources, rewrite_message),
+        media_type="text/event-stream",
+        headers={
+            # 禁止中间代理缓冲：保证增量能实时到达前端
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
