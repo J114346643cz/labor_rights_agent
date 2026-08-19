@@ -6,6 +6,7 @@ from starlette.responses import JSONResponse
 
 from app.api.chat_api import router as chat_router
 from app.api.sessions_api import router as sessions_router
+from app.api.contract_api import router as contract_router
 from app.core.db import init_db
 
 # 日志
@@ -39,6 +40,7 @@ async def unhandled_exception_handler(request:Request,exc:Exception)->JSONRespon
 
 app.include_router(chat_router)
 app.include_router(sessions_router)
+app.include_router(contract_router)
 
 @app.on_event("startup")
 def on_startup()->None:
@@ -52,3 +54,7 @@ async def root():
 @app.get("/hello/{name}")
 async def say_hello(name: str):
     return {"message": f"Hello {name}"}
+
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok"}

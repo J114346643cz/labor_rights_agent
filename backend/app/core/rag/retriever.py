@@ -1,13 +1,29 @@
 from app.core.rag.embedding import embed_query
 from app.core.rag.knowledge_base import get_collection
 
+def retrieve(query: str, top_k: int = 5) -> list[dict]:
+    """检索与 query 最相关的 top_k 条法条。
 
-def retrieve(query:str ,top_k :int = 5)->list[dict]:
+    返回：[{"law": ..., "article": ..., "title": ..., "content": ..., "distance": ...}]
+    """
+    return _query(query, top_k, where_filter=None)
+
+
+def retrieve_rules(query: str, top_k: int = 3) -> list[dict]:
+    """只检索合规规则库（M7：metadata.source_type == "rule"）。
+
+    合同体检判定时优先用规则库（规则含明确的违规判定逻辑），
+    命中不足时再退回法条库（见 checker.py）。
+    """
+    return _query(query, top_k, where_filter={"source_type": "rule"})
+
+def _query(query: str, top_k: int, where_filter: dict | None)->list[dict]:
     collection = get_collection()
     query_vec = embed_query(query)
     result = collection.query(
         query_embeddings=[query_vec],
         n_results=top_k,
+        where=where_filter,
         include=["documents", "metadatas", "distances"],
     )
     hits = []

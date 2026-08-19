@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     chroma_dir: str = str(BASE_DIR / "data" / "chroma")
     # 法条原始文档目录（M0 数据）
     laws_dir: Path = BASE_DIR / "data" / "laws"
+    # 合同合规规则库目录（M7，与法条同集合入库，metadata.source_type=rule 区分）
+    contract_rules_dir: Path = BASE_DIR / "data" / "contract_rules"
     # Chroma 向量库的集合名
     collection_name:str = "law_kb"
     # embedding 模型名（fastembed 的 BGE 中文模型，维度 512）
@@ -55,6 +57,8 @@ class Settings(BaseSettings):
     # True=LangGraph 版（正式）；False=手写 ReAct 版（原理教学/对比）
     agent_use_langgraph: bool = True
 
+    # 合同上传文件的最大大小
+    max_file_size: int = 5 * 1024 * 1024 # 5MB
 
     # 告诉BaseSettings去哪里读环境变量、用什么编码读取文件
     model_config = {

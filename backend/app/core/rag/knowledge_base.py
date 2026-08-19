@@ -70,17 +70,20 @@ def parse_law_file(path:Path)->list[dict]:
 
     def flush():
         # flush是内部函数，想要修改外层函数的current_title、current_body变量，必须写nonlocal，否则只能读不能改。
-        nonlocal current_title,current_body
+        nonlocal current_title, current_body
         if current_title and current_body:
             content = f"{current_title}\n" + "\n".join(current_body).strip()
             m = ARTICLE_RE.search(current_title)
             article_num = cn_to_int(m.group(1)) if m else 0
-            articles.append({
-                "law":law,
-                "article":article_num,
-                "title":current_title,
-                "content":content,
-            })
+            articles.append(
+                {
+                    "law": law,
+                    "article": article_num,
+                    "title": current_title,
+                    "content": content,
+                }
+            )
+        current_title, current_body = None, []
 
     for line in text.splitlines():
         if line.startswith("## "):
@@ -91,7 +94,7 @@ def parse_law_file(path:Path)->list[dict]:
             current_body.append(line.strip())
 
     flush()
-    return  articles
+    return articles
 
 
 
@@ -127,6 +130,44 @@ def ingest(force : bool=False) ->dict :
     # 存入向量数据库
     collection.add(ids=ids, documents=documents, metadatas=metadatas, embeddings=vectors)
     return {"ingested": len(all_articles), "laws": sorted({a["law"] for a in all_articles})}
+
+
+def ingest_rules() -> dict:
+    """合同合规规则库入库（M7）：与法条同 collection，metadata 标记 source_type=rule。
+
+    规则文件格式与法条一致（## 第X条 标题），复用 parse_law_file。
+    """
+    collection = get_collection()
+    rules_dir = settings.contract_rules_dir
+
+    all_rules = []
+    for md_file in sorted(rules_dir.glob("*.md")):
+        all_rules.extend(parse_law_file(md_file))
+
+    if not all_rules:
+        return {"ingested": 0, "error": f"{rules_dir} 下没有规则文件"}
+
+    contents = [r["content"] for r in all_rules]
+    vectors = embed_texts(contents)
+
+    ids = []
+    documents = []
+    metadatas = []
+    for r, vec in zip(all_rules, vectors):
+        doc_id = f"rule-{r['law']}-{r['article']}"
+        ids.append(doc_id)
+        documents.append(r["content"])
+        metadatas.append(
+            {
+                "law": r["law"],
+                "article": str(r["article"]),
+                "title": r["title"],
+                "source_type": "rule",  # 与法条区分（法条无此字段）
+            }
+        )
+
+    collection.add(ids=ids, documents=documents, metadatas=metadatas, embeddings=vectors)
+    return {"ingested": len(all_rules), "rules": sorted({r["law"] for r in all_rules})}
 
 if __name__ == '__main__':
     import json

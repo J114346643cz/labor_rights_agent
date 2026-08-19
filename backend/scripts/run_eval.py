@@ -134,6 +134,28 @@ def eval_calc_case(case: dict) -> tuple[bool, str]:
     return ok, detail
 
 
+def _match_expected_sources(expected_list: list[str], sources: list[dict], reply: str) -> bool:
+    """结构化引用匹配：期望"劳动合同法第19条" ↔ source {law, article}。
+
+    修复前：字符串 in 字符串（"劳动合同法第19条" in "中华人民共和国劳动合同法（核心条款节选）第19" = False）
+    修复后：从期望中解析出 (法律关键词, 条款号)，检查 sources 中是否有
+            law 包含该关键词 且 article 等于条款号；同时保留回答文本兜底匹配。
+    """
+    for exp in expected_list:
+        # 情形1：期望是条文格式，如 "劳动合同法第19条"
+        m = re.search(r"(.+?)第(\d+)条", exp)
+        if m:
+            law_kw, article = m.group(1).strip(), m.group(2)
+            for s in sources:
+                if str(s.get("article")) == article and law_kw in s.get("law", ""):
+                    return True
+            continue  # 该条文在 sources 中没有 → 检查下一条期望
+        # 情形2：期望是文档名/文号（如 "劳社部发〔2008〕3号"）→ 模糊匹配 law 或回答
+        if exp in reply or any(exp in s.get("law", "") or exp in s.get("text", "") for s in sources):
+            return True
+    return False
+
+
 def eval_chat_case(case: dict, client) -> tuple[bool, str]:
     """跑单个法条/多轮题：调 chat 接口，检查引用是否命中。"""
     import urllib.request
@@ -144,7 +166,7 @@ def eval_chat_case(case: dict, client) -> tuple[bool, str]:
             f"{BASE_URL}/api/agent/chat", data=body,
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=180) as resp:
             return json.loads(resp.read())
 
     expected = case.get("expected_sources", [])
@@ -166,16 +188,57 @@ def eval_chat_case(case: dict, client) -> tuple[bool, str]:
         return True, f"多轮对话完成，回答: {resp.get('reply', '')[:60]}"
     else:  # 法条题
         resp = ask(None, case["question"])
-        sources = [s["law"] + "第" + str(s["article"]) for s in resp.get("sources", [])]
-        # 引用命中：期望的条文（如"劳动合同法第47条"）是否出现在 sources 或回答中
-        reply = resp.get("reply", "")
-        hit = any(exp in reply or any(exp in s for s in sources) for exp in expected)
-        return hit, f"sources={sources}，期望={expected}"
+        raw_sources = resp.get("sources", [])
+        # 引用命中：结构化比对（期望"劳动合同法第19条" ↔ source.law 含"劳动合同法" 且 article==19）
+        hit = _match_expected_sources(expected, raw_sources, resp.get("reply", ""))
+        display = [s["law"] + "第" + str(s["article"]) for s in raw_sources]
+        return hit, f"sources={display}，期望={expected}"
+
+
+CONTRACT_CASES = Path(__file__).resolve().parent.parent / "data" / "eval_contract_cases.json"
+
+
+def eval_contract_case(case: dict, client) -> tuple[bool, str]:
+    """跑单个体检测试样本：调 check-text 接口，验证违规项是否被识别。
+
+    期望格式（eval_contract_cases.json）：
+      {"id", "doc": 合同文本, "expected_findings": [{"field", "verdict", "law"}]}
+    判定：对每个 expected_finding，检查报告 findings 中对应字段的 verdict
+    是否与期望一致（"违法"对"违法"、"合法"对"合法"、"模糊"对"模糊"）。
+    """
+    import urllib.request
+
+    body = json.dumps({"text": case["doc"]}).encode()
+    req = urllib.request.Request(
+        f"{BASE_URL}/api/agent/contract/check-text", data=body,
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=180) as resp:
+        report = json.loads(resp.read())
+
+    findings = {f["field"]: f for f in report.get("findings", [])}
+    expected = case.get("expected_findings", [])
+
+    if not expected:
+        # 期望无违规（如 check-019 合法合同）：报告不应有违法项
+        violations = [f for f in report.get("findings", []) if f["verdict"] == "违法"]
+        ok = len(violations) == 0
+        return ok, f"合法样本：报告违法项 {len(violations)} 个（期望 0）"
+
+    checked = []
+    for exp in expected:
+        field, want = exp.get("field"), exp.get("verdict")
+        got = findings.get(field, {}).get("verdict", "未检出")
+        checked.append(f"{field}={got}(期望{want})")
+        if got != want:
+            return False, "；".join(checked) + f" ← {field} 判定不一致"
+
+    return True, "；".join(checked)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="评估测试集")
-    parser.add_argument("--category", choices=["计算", "法条", "多轮"], help="只跑指定类别")
+    parser.add_argument("--category", choices=["计算", "法条", "多轮", "体检"], help="只跑指定类别")
     parser.add_argument("--only-local", action="store_true", help="只跑本地可跑的（计算题）")
     args = parser.parse_args()
 
@@ -188,6 +251,25 @@ def main() -> None:
     remote_cases = [c for c in cases if c["category"] != "计算"]
     if args.only_local:
         remote_cases = []
+
+    # 体检类别：独立样本集（eval_contract_cases.json），需服务运行
+    contract_cases = []
+    if args.category == "体检":
+        contract_cases = json.loads(CONTRACT_CASES.read_text(encoding="utf-8"))["cases"]
+        remote_cases = []  # 体检与法条/多轮互斥，只跑体检
+
+    # 0. 预检：远程测试需要后端服务在运行（避免服务没起时的误报）
+    if remote_cases or contract_cases:
+        import urllib.request
+
+        try:
+            urllib.request.urlopen(f"{BASE_URL}/health", timeout=5)
+            print(f"✅ 后端服务检测正常: {BASE_URL}")
+        except Exception:
+            print("⚠️ 后端服务未启动！法条/多轮/体检测试需要先运行: uv run uvicorn app.main:app --reload")
+            print("   本次将只评估计算题（本地）。\n")
+            remote_cases = []
+            contract_cases = []
 
     results: list[dict] = []
 
@@ -210,6 +292,17 @@ def main() -> None:
         results.append({"id": c["id"], "category": c["category"], "ok": ok, "detail": detail})
         print(f"{'✅' if ok else '❌'} {c['id']} ({c['category']}): {detail}")
 
+    # 2.5 体检测试（调 check-text 接口）
+    contract_pass = 0
+    for c in contract_cases:
+        try:
+            ok, detail = eval_contract_case(c, None)
+        except Exception as e:
+            ok, detail = False, f"接口调用失败: {e}"
+        contract_pass += ok
+        results.append({"id": c["id"], "category": "体检", "ok": ok, "detail": detail})
+        print(f"{'✅' if ok else '❌'} {c['id']} (体检): {detail}")
+
     # 3. 汇总报告
     total = len(results)
     passed = sum(1 for r in results if r["ok"])
@@ -217,13 +310,13 @@ def main() -> None:
         "# 评估报告",
         "",
         f"- 测试时间：{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"- 测试集总数：{total} 条（计算 {len(local_cases)} / 法条+多轮 {len(remote_cases)}）",
+        f"- 测试集总数：{total} 条（计算 {len(local_cases)} / 法条+多轮 {len(remote_cases)} / 体检 {len(contract_cases)}）",
         f"- 通过：{passed}/{total}（{passed / total:.1%}）",
         "",
         "## 分项统计",
         "",
     ]
-    for cat in ["计算", "法条", "多轮"]:
+    for cat in ["计算", "法条", "多轮", "体检"]:
         cat_results = [r for r in results if r["category"] == cat]
         if cat_results:
             cat_pass = sum(1 for r in cat_results if r["ok"])

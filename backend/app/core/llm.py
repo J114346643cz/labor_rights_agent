@@ -23,12 +23,12 @@ def get_client() -> OpenAI:
         )
     return _client
 
-def chat(message: list[dict[str,Any]]) -> str:
+def chat(message: list[dict[str,Any]], temperature: float = 0.7) -> str:
     """多轮对话：传入完整 messages 列表（含 system），返回模型回答文本。"""
     resp = get_client().chat.completions.create(
         model=settings.deepseek_model,
         messages=message,
-        temperature=0.2  # RAG场景改成0.2，不要0.7，减少幻觉
+        temperature=temperature  # RAG场景改成0.2，不要0.7，减少幻觉
     )
     return resp.choices[0].message.content
 
