@@ -13,6 +13,7 @@ from app.core import llm
 from app.core.db import get_db
 from app.core.rag.query_rewrite import rewrite_query
 from app.core.rag.retriever import retrieve, format_context
+from app.core.tools.city_policy import list_cities
 from app.schemas.Chat import ChatRequest, ChatResponse, Source
 from sqlmodel import Session as DBSession
 from app.core import memory
@@ -22,7 +23,7 @@ from app.utils.config import settings
 # 日志记录器（与 main.py 共用同一个名字）
 logger = logging.getLogger("labor_agent")
 
-router = APIRouter(prefix="/api/agent",tags=['agent'])
+router = APIRouter(prefix="/api/agent",tags=['chat'])
 
 MAX_AGENT_TURNS = settings.max_agent_turns
 
@@ -37,12 +38,27 @@ def _make_title(message:str) ->str:
     title = message.strip().replace("\n"," ")
     return title[:settings.title_max_len] if title else "新对话"
 
+def _detect_city(message: str) -> str | None:
+    """从用户消息中识别城市（M8：带 city 检索公共政策库）。
+
+    用已收录城市名列表做包含匹配（"我在杭州上班"→"杭州"）。
+    命中返回城市名，未命中返回 None（不检索政策库）。
+    """
+    for city in list_cities():
+        if city in message:
+            return city
+    return None
 
 def _retrieve_and_build_context(user_message:str)->tuple[str,list[Source],str]:
     # M3.5：query改写 口语 → 法律术语（词典优先，LLM 兜底），提升口语问题命中率
-    search_query = rewrite_query(user_message,use_llm=settings.rag_use_llm_rewrite)
+    """query 改写 → 检索相关法条+政策 → 返回 (拼好的上下文段落, 引用来源列表)。
 
-    hits = retrieve(search_query,top_k=settings.rag_top_k)
+        改写只影响检索词，用户原话仍原样进对话历史与回答。
+        M8：从消息识别城市后带 city 检索（政策库按城市过滤），命中政策标注来源。
+        """
+    search_query = rewrite_query(user_message,use_llm=settings.rag_use_llm_rewrite)
+    city = _detect_city(user_message)
+    hits = retrieve(search_query,top_k=settings.rag_top_k,city=city)
     context = format_context(hits)
     sources = [
         # law法条名（劳动合同法）  article第几条法条 text法条具体内容

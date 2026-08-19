@@ -2,11 +2,27 @@ import json
 from typing import Any,Callable
 
 from app.core.tools.annual_leave import calculate_annual_leave
+from app.core.tools.city_policy import query_city_policy
 from app.core.tools.overtime import calculate_overtime_pay
 from app.core.tools.severance import calculate_severance
+from app.core.tools.statement import build_statement
 from app.core.tools.tax import calculate_tax
 
 TOOL_SCHEMAS: list[dict] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "query_city_policy",
+            "description": "查询指定城市的最新政策：最低工资标准、上年度职工月平均工资（3倍为经济补偿封顶线）。用户提到所在城市（如'我在广州'）时应调用此工具。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string", "description": "城市名，如 北京、上海、广州"},
+                },
+                "required": ["city"],
+            },
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -74,14 +90,39 @@ TOOL_SCHEMAS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "build_statement",
+            "description": "生成核算单（结合城市政策的确定性计算结果）。kind=severance 经济补偿 / overtime 加班费。需要城市名（用户提到的所在城市）、月薪等参数。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": ["severance", "overtime"], "description": "核算类型"},
+                    "city": {"type": "string", "description": "城市名（来自用户对话，如 广州）"},
+                    "monthly_salary": {"type": "number", "description": "月薪"},
+                    "years": {"type": "integer", "description": "工作整年数（severance 用）"},
+                    "months": {"type": "integer", "description": "剩余月数 0-11（severance 用）"},
+                    "scenario": {"type": "string", "enum": ["negotiated", "N+1", "illegal"],
+                                 "description": "解除情形（severance 用）"},
+                    "overtime_type": {"type": "string", "enum": ["weekday", "weekend", "holiday"],
+                                      "description": "加班类型（overtime 用）"},
+                    "hours": {"type": "number", "description": "加班小时数（overtime 用）"},
+                },
+                "required": ["kind", "city", "monthly_salary"],
+            },
+        },
+    },
 ]
 
 # 工具名 → 执行函数
 _TOOL_FUNCTIONS: dict[str, Callable[..., dict]] = {
+    "query_city_policy": query_city_policy,
     "calculate_overtime_pay": calculate_overtime_pay,
     "calculate_severance": calculate_severance,
     "calculate_tax": calculate_tax,
     "calculate_annual_leave": calculate_annual_leave,
+    "build_statement": build_statement,
 }
 
 def get_tool_name_from_call(tool_call:Any)->str:

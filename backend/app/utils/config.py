@@ -29,8 +29,12 @@ class Settings(BaseSettings):
     laws_dir: Path = BASE_DIR / "data" / "laws"
     # 合同合规规则库目录（M7，与法条同集合入库，metadata.source_type=rule 区分）
     contract_rules_dir: Path = BASE_DIR / "data" / "contract_rules"
-    # Chroma 向量库的集合名
+    # 城市政策数据目录（M8）
+    policies_dir: Path = BASE_DIR / "data" / "policies"
+    # /contract_rules和/laws下文件 Chroma 向量库的集合名
     collection_name:str = "law_kb"
+    # 用户上传的相关政策的向量库的集合名
+    policy_collection:str = "policy_kb"
     # embedding 模型名（fastembed 的 BGE 中文模型，维度 512）
     embedding_model: str = "BAAI/bge-small-zh-v1.5"
     # embedding 模型缓存目录（固定在工作区内，避免写 C 盘系统目录）
@@ -59,6 +63,12 @@ class Settings(BaseSettings):
 
     # 合同上传文件的最大大小
     max_file_size: int = 5 * 1024 * 1024 # 5MB
+
+    # ----  文档分块 ----
+    # 每块大小
+    chunk_size : int = 300
+    # 上下块可重叠字符数
+    chunk_overlap:int = 50
 
     # 告诉BaseSettings去哪里读环境变量、用什么编码读取文件
     model_config = {

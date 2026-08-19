@@ -131,7 +131,7 @@ def ingest(force : bool=False) ->dict :
     collection.add(ids=ids, documents=documents, metadatas=metadatas, embeddings=vectors)
     return {"ingested": len(all_articles), "laws": sorted({a["law"] for a in all_articles})}
 
-
+#把 data/contract_rules/ 下所有合同规则入库。
 def ingest_rules() -> dict:
     """合同合规规则库入库（M7）：与法条同 collection，metadata 标记 source_type=rule。
 
