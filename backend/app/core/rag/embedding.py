@@ -1,3 +1,5 @@
+# 关键：必须在任何 HF 生态库（fastembed→huggingface_hub）import 之前设置 HF 环境变量
+from app.utils import hf_env # noqa: F401  确保 hf_env 最先执行
 import os
 
 from fastembed import TextEmbedding

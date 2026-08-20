@@ -40,11 +40,17 @@ class Settings(BaseSettings):
     # embedding 模型缓存目录（固定在工作区内，避免写 C 盘系统目录）
     embedding_cache_dir: str = str(BASE_DIR / "data" / "embedding_cache")
 
+    # --------------rag-----------------------
     # 默认检索条数
     rag_top_k: int = 5
-
     # M3.5：query 改写是否启用 LLM 兜底层（词典层始终启用；False 时只走词典）
     rag_use_llm_rewrite: bool = True
+    # False=回退纯向量,True使用混合检索。可随时切换（A/B 对比 / 出问题回退）。
+    rag_use_hybrid: bool = True
+    # 是否开启精排rerank。
+    rag_use_rerank: bool = False
+    # reranker 精排模型
+    rerank_model:str = "BAAI/bge-reranker-v2-m3"
 
     # Agent 循环最大轮数（防死循环：模型一直请求工具不回答）
     max_agent_turns:int = 5
@@ -69,6 +75,14 @@ class Settings(BaseSettings):
     chunk_size : int = 300
     # 上下块可重叠字符数
     chunk_overlap:int = 50
+
+    # ========== HuggingFace 配置 ==========
+    # HF 缓存目录: 设置后, 模型 ID 方式(BAAI/bge-m3)会直接从该目录加载, 本机已有缓存时启动不联网
+    hf_home: str = ""
+    # HF 镜像端点: 国内下载模型慢时设置, 如 https://hf-mirror.com
+    hf_endpoint: str = ""
+    # HF 离线模式: 置 true 后 huggingface 库完全不联网, 只从缓存加载(模型已下载时开启, 避免超时重试)
+    hf_hub_offline: bool = False
 
     # 告诉BaseSettings去哪里读环境变量、用什么编码读取文件
     model_config = {

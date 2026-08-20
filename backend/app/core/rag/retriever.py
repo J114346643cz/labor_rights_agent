@@ -1,7 +1,10 @@
 from app.core.rag.embedding import embed_query
+from app.core.rag.hybrid import load_corpus, BM25Index, hybrid_retrieve
 from app.core.rag.knowledge_base import get_collection
 from app.core.rag.policy_kb import get_policy_collection
+from app.utils.config import settings
 
+rerank = settings.rag_use_rerank
 
 def retrieve(query: str, top_k: int = 5, city: str | None = None) -> list[dict]:
     """检索与 query 最相关的 top_k 条法条+规则。
@@ -9,7 +12,20 @@ def retrieve(query: str, top_k: int = 5, city: str | None = None) -> list[dict]:
     city 不为空时，融合检索公共政策库（按城市过滤），结果合并按距离排序。
     返回：[{"law", "article", "title", "content", "distance", "source_type"}]
     """
-    law_hits = _query(query, top_k, where_filter=None)
+    if settings.rag_use_hybrid:
+        # 获取知识库所有法条+规则
+        # [
+        #     {"content": "劳动合同应当书面签订",....},
+        #     {"content": "试用期不得超过六个月",....},.....
+        # ]
+        corpus = load_corpus()
+        # 将文档进行bm25处理
+        bm25 = BM25Index(corpus)
+        law_hits = hybrid_retrieve(query,corpus,top_k=top_k,bm25=bm25,rerank=rerank)
+    else:
+        law_hits = _query(query, top_k, where_filter=None)
+
+
 
     if city:
         policy_hits = _query_policy(query, top_k, city=city)
