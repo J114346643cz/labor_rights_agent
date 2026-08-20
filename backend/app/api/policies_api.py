@@ -1,6 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
 from app.core.rag.policy_kb import ingest_policy, list_policies, delete_policy
+from app.core.tools.city_policy import list_cities
 from app.utils.config import settings
 
 router = APIRouter(prefix="/api/agent",tags=["policies"])
@@ -54,6 +55,15 @@ def upload_policy(
 @router.get("/policies")
 def list_policy_docs() -> list[dict]:
     return list_policies()
+
+@router.get("/policies/cities")
+def get_cities() -> dict:
+    """已收录城市列表(来自 city_policies.csv,核算单下拉/提示用)。
+
+    只有 CSV 里收录的城市才能核算(查得到最低工资/社平工资)。
+    """
+    cities = list_cities()
+    return {"cities": cities, "count": len(cities)}
 
 @router.delete("/policies/{doc_id}")
 def remove_policy(doc_id:str)->dict:

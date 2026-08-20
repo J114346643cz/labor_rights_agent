@@ -5,8 +5,17 @@ import { ElMessageBox } from 'element-plus'
 defineProps({
   sessions: { type: Array, required: true }, // 会话列表(侧栏展示)
   activeSessionId: { type: String, default: null }, // 当前选中会话 ID(高亮)
+  activeView: { type: String, default: 'chat' }, // 当前功能视图(chat/contract/policy/statement)
 })
-const emit = defineEmits(['create', 'select', 'delete'])
+const emit = defineEmits(['create', 'select', 'delete', 'change-view'])
+
+// 功能导航项:档案室四个服务台(图标用全局注册的 Element Plus 图标)
+const NAV_ITEMS = [
+  { key: 'chat', label: '聊天', icon: 'ChatDotRound' },
+  { key: 'contract', label: '合同体检', icon: 'DocumentChecked' },
+  { key: 'policy', label: '政策库', icon: 'Collection' },
+  { key: 'statement', label: '核算单', icon: 'Notebook' },
+]
 
 // 点击删除图标:先弹确认框,确认后才通知父组件删除
 async function confirmDelete(session) {
@@ -25,42 +34,66 @@ async function confirmDelete(session) {
 
 <template>
   <aside class="session-sidebar">
-    <!-- 顶部:栏目标题 + 新建对话按钮 -->
-    <div class="sidebar-header">
-      <span class="sidebar-title">对话记录</span>
-      <!-- 新建对话:朱红加号按钮 -->
-      <el-button
-        class="create-btn"
-        type="primary"
-        circle
-        size="small"
-        title="新建对话"
-        @click="emit('create')"
-      >
-        <el-icon><Plus /></el-icon>
-      </el-button>
+    <!-- 品牌区:印章 logo + 应用名 -->
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">权</div>
+      <span class="brand-name">劳动智法助手</span>
     </div>
 
-    <!-- 会话列表(超出高度滚动) -->
-    <div class="session-list">
-      <!-- 每个会话一行:点击切换,悬停显示删除按钮,选中带朱红左条 -->
-      <div
-        v-for="s in sessions"
-        :key="s.id"
-        class="session-item"
-        :class="{ active: s.id === activeSessionId }"
-        @click="emit('select', s.id)"
+    <!-- 功能导航:四个服务台 -->
+    <nav class="nav">
+      <!-- 每个功能一项:点击切换视图,选中朱红左条 + 高亮 -->
+      <button
+        v-for="item in NAV_ITEMS"
+        :key="item.key"
+        class="nav-item"
+        :class="{ active: item.key === activeView }"
+        @click="emit('change-view', item.key)"
       >
-        <!-- 会话标题(超长省略,悬停显示全名) -->
-        <span class="session-title" :title="s.title">{{ s.title }}</span>
-        <!-- 删除按钮(.stop 阻止冒泡,避免误触切换会话) -->
-        <el-icon class="delete-icon" :size="14" @click.stop="confirmDelete(s)">
-          <Delete />
-        </el-icon>
+        <el-icon class="nav-icon" :size="17"><component :is="item.icon" /></el-icon>
+        <span class="nav-label">{{ item.label }}</span>
+      </button>
+    </nav>
+
+    <!-- 会话列表:仅聊天视图显示 -->
+    <template v-if="activeView === 'chat'">
+      <!-- 分隔线与栏目标题 -->
+      <div class="session-header">
+        <span class="sidebar-title">对话记录</span>
+        <!-- 新建对话:朱红加号按钮 -->
+        <el-button
+          class="create-btn"
+          type="primary"
+          circle
+          size="small"
+          title="新建对话"
+          @click="emit('create')"
+        >
+          <el-icon><Plus /></el-icon>
+        </el-button>
       </div>
-      <!-- 空态:还没有任何会话 -->
-      <p v-if="!sessions.length" class="empty-tip">还没有对话记录<br />点击上方 + 开始</p>
-    </div>
+
+      <!-- 会话列表(超出高度滚动) -->
+      <div class="session-list">
+        <!-- 每个会话一行:点击切换,悬停显示删除按钮,选中带朱红左条 -->
+        <div
+          v-for="s in sessions"
+          :key="s.id"
+          class="session-item"
+          :class="{ active: s.id === activeSessionId }"
+          @click="emit('select', s.id)"
+        >
+          <!-- 会话标题(超长省略,悬停显示全名) -->
+          <span class="session-title" :title="s.title">{{ s.title }}</span>
+          <!-- 删除按钮(.stop 阻止冒泡,避免误触切换会话) -->
+          <el-icon class="delete-icon" :size="14" @click.stop="confirmDelete(s)">
+            <Delete />
+          </el-icon>
+        </div>
+        <!-- 空态:还没有任何会话 -->
+        <p v-if="!sessions.length" class="empty-tip">还没有对话记录<br />点击上方 + 开始</p>
+      </div>
+    </template>
 
     <!-- 底部落款:呼应"档案"主题 -->
     <p class="sidebar-footer">劳动权益 · 有据可查</p>
@@ -77,23 +110,123 @@ async function confirmDelete(session) {
   background: var(--ink-900);
 }
 
-/* 顶部标题区 */
-.sidebar-header {
+/* 品牌区:印章 + 应用名 */
+.brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 18px 16px 14px;
 }
 
-/* 栏目标题:纸白字,加字距 */
-.sidebar-title {
+/* 印章 logo:朱红方块白字 */
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--seal-600);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* 应用名 */
+.brand-name {
   font-size: 14px;
   font-weight: 600;
   color: #f2f0ea;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+/* 功能导航 */
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 10px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 导航项:按钮式 */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  text-align: left;
+  font-family: inherit;
+}
+
+/* 导航项悬停 */
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 选中项:更亮背景 + 朱红左条 */
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* 选中项朱红索引条 */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--seal-600);
+}
+
+/* 导航图标 */
+.nav-icon {
+  color: #9aa3b0;
+  flex-shrink: 0;
+}
+
+/* 选中项图标变亮 */
+.nav-item.active .nav-icon {
+  color: #fff;
+}
+
+/* 导航文字 */
+.nav-label {
+  font-size: 13.5px;
+  color: #d8dbe0;
+}
+
+/* 选中项文字变亮 */
+.nav-item.active .nav-label {
+  color: #fff;
+}
+
+/* 会话区标题行 */
+.session-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+}
+
+/* 会话栏目标题 */
+.sidebar-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6e7a8c;
   letter-spacing: 2px;
 }
 
-/* 新建按钮:朱红实底(覆盖 Element Plus 默认主题色) */
+/* 新建按钮:朱红实底 */
 .create-btn {
   --el-button-bg-color: var(--seal-600);
   --el-button-border-color: var(--seal-600);

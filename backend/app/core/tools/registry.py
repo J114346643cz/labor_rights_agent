@@ -1,6 +1,7 @@
 import json
 from typing import Any,Callable
 
+from app.core.rag.policy_kb import list_policies
 from app.core.tools.annual_leave import calculate_annual_leave
 from app.core.tools.city_policy import query_city_policy
 from app.core.tools.overtime import calculate_overtime_pay
@@ -93,6 +94,17 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "list_policy_docs",
+            "description": "列出政策资料库中的所有政策文档清单(城市/类型/文档名/生效日期/来源)。用户问'政策库里有哪些/有哪些政策/我的资料库'时应调用此工具。",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "build_statement",
             "description": "生成核算单（结合城市政策的确定性计算结果）。kind=severance 经济补偿 / overtime 加班费。需要城市名（用户提到的所在城市）、月薪等参数。",
             "parameters": {
@@ -123,6 +135,7 @@ _TOOL_FUNCTIONS: dict[str, Callable[..., dict]] = {
     "calculate_tax": calculate_tax,
     "calculate_annual_leave": calculate_annual_leave,
     "build_statement": build_statement,
+    "list_policy_docs": lambda: {"policies": list_policies()},  # 政策库清单(包装成 dict 返回)
 }
 
 def get_tool_name_from_call(tool_call:Any)->str:

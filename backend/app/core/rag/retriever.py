@@ -7,9 +7,10 @@ from app.utils.config import settings
 rerank = settings.rag_use_rerank
 
 def retrieve(query: str, top_k: int = 5, city: str | None = None) -> list[dict]:
-    """检索与 query 最相关的 top_k 条法条+规则。
+    """检索与 query 最相关的 top_k 条法条+规则+政策。
 
-    city 不为空时，融合检索公共政策库（按城市过滤），结果合并按距离排序。
+    政策库始终参与检索（city 为空时不过滤城市，命中任意城市政策），
+    法条/规则/政策合并后按距离排序截断。
     返回：[{"law", "article", "title", "content", "distance", "source_type"}]
     """
     if settings.rag_use_hybrid:
@@ -25,24 +26,29 @@ def retrieve(query: str, top_k: int = 5, city: str | None = None) -> list[dict]:
     else:
         law_hits = _query(query, top_k, where_filter=None)
 
+    # 政策库也检索（用户上传的城市政策,如高温补贴）;city 非空时按城市过滤
+    policy_hits = _query_policy(query, top_k, city=city)
+    merged = law_hits + policy_hits
+    merged.sort(key=lambda h: h["distance"])
+    return merged[:top_k]
 
+def _query_policy(query: str, top_k: int, city: str | None = None) -> list[dict]:
+    """从公共政策库检索（city 非空时按城市过滤,为空则检索全部）。"""
+    # 政策集合为空时直接返回,避免对空集合查询
+    col = get_policy_collection()
+    if col.count() == 0:
+        return []
 
-    if city:
-        policy_hits = _query_policy(query, top_k, city=city)
-        merged = law_hits + policy_hits
-        merged.sort(key=lambda h: h["distance"])
-        return merged[:top_k]
-
-    return law_hits
-
-def _query_policy(query: str, top_k: int, city: str) -> list[dict]:
-    """从公共政策库检索（按城市过滤）。"""
     query_vec = embed_query(query)
-    result = get_policy_collection().query(
+    # 按城市过滤是可选条件,空集合不加 where
+    query_kwargs: dict = {}
+    if city:
+        query_kwargs["where"] = {"city": city}
+    result = col.query(
         query_embeddings=[query_vec],
         n_results=top_k,
-        where={"city": city},
         include=["documents", "metadatas", "distances"],
+        **query_kwargs,
     )
     hits = []
     docs = (result.get("documents") or [[]])[0]

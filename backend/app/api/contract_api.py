@@ -1,15 +1,18 @@
 import json
+
+from io import BytesIO
 from typing import Optional
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel import Session as DBSession, select
 
 from app.core.contract.parser import extract_text
-from app.core.contract.service import run_contract_check, DISCLAIMER
+from app.core.contract.service import run_contract_check, DISCLAIMER, _build_report_docx
 from app.core.db import get_db
 from app.core.memory import get_session, add_message
-from app.schemas.ContractReport import ContractReport
+from app.schemas.ContractReport import ContractReport, ReportBindRequest, ReportDocxRequest
 from app.utils.config import settings
 
 MAX_FILE_SIZE = settings.max_file_size
@@ -35,11 +38,12 @@ def _maybe_save_report(db:DBSession, session_id:Optional[str], report:dict):
     )
 
     # 2. 写 assistant 摘要消息（对话上下文：Agent 后续追问能记得体检结论）
-    summary = report["summary"]
+    summary = report.get("summary", {})
     risky = [
-        f for f in report["findings"] if f["verdict"] in ("违法", "模糊") and f["present"]
+        f for f in report.get("findings", [])
+        if f.get("verdict") in ("违法", "模糊") and f.get("present", True)
     ]
-    risky_desc = "；".join(f"{f['field']}（{f['verdict']}）" for f in risky) or "无"
+    risky_desc = "；".join(f"{f.get('field')}（{f.get('verdict')}）" for f in risky) or "无"
     msg = (
         f"已对《{report['file_name']}》完成体检：共检查 {summary['total']} 项条款，"
         f"发现 {summary['violations']} 项违法、{summary['warnings']} 项需注意。"
@@ -63,7 +67,7 @@ def check_contract(
 
     try:
         # 解析用户上传的合同文件 获取文件内容str
-        text = extract_text(file.filename,content)
+        text = extract_text(file.filename, content)
     except ValueError as e :
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -86,6 +90,34 @@ def get_session_reports(session_id:str,db:DBSession=Depends(get_db))->list[dict]
     )
     reports = db.exec(stmt).all()
     return [json.loads(r.report) for r in reports]
+
+
+@router.post("/contract/report-bind")
+def bind_report_to_session(req: ReportBindRequest, db: DBSession = Depends(get_db)) -> dict:
+    """把已生成的体检报告绑定到指定会话(报告入库 + 写 assistant 摘要消息)。
+
+    用于"去聊天继续提问":体检时可能没有会话,报告生成后才新建体检专用会话,
+    前端把报告 JSON 发来,复用 _maybe_save_report 的入库逻辑。
+    """
+    if get_session(db, req.session_id) is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    _maybe_save_report(db, req.session_id, req.report)
+    return {"ok": True, "session_id": req.session_id}
+
+
+@router.post("/contract/report-docx")
+def download_report_docx(req: ReportDocxRequest) -> StreamingResponse:
+    """把体检报告渲染成 Word 文档返回(前端用 Blob 下载)。"""
+    content = _build_report_docx(req.report)
+    # RFC 5987 编码文件名,避免中文在 Content-Disposition 里乱码
+    file_name = f"{req.report.get('file_name', '合同体检报告')}.docx"
+    encoded = file_name.encode("utf-8").decode("latin-1")
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename*=UTF-8\'\'{encoded}'},
+    )
+
 
 class ContractTextRequest(BaseModel):
     text: str

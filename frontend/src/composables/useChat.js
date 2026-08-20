@@ -44,10 +44,12 @@ export function useChat() {
   }
 
   // 新建会话并选中(标题暂用后端默认,首条消息后自动生成)
-  async function handleCreate() {
-    const { data } = await createSession()
+  // 新建会话并选中(标题可选:如"合同体检 · xxx",不传则后端默认"新对话")
+  async function handleCreate(title) {
+    const { data } = await createSession(title)
     sessions.value.unshift(data) // 插到列表最前(后端按创建时间倒序,新建的在最前)
     await selectSession(data.id) // 新建后直接进入该会话
+    return data.id // 返回新会话 ID(调用方可能需要,如绑定体检报告)
   }
 
   // 切换会话:加载该会话的历史消息,恢复对话上下文

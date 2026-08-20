@@ -21,6 +21,63 @@
   --text: #2b2f36;
   /* 法条原文用仿宋(法律文书的惯用字体) */
   --font-law: 'STFangsong', 'FangSong', 'SimSun', serif;
+  /* 分级色:体检/核算结果的风险等级(克制使用,仅语义处) */
+  --risk-bad: #b23a2e; /* 违法 / 风险高:朱红 */
+  --risk-warn: #c98a2d; /* 模糊 / 需注意:琥珀 */
+  --risk-ok: #4a7c59; /* 合法 / 正常:深绿 */
+  --risk-na: #7a828e; /* 未约定 / 未知:灰 */
+}
+
+/* ---- 视图通用:档案卡(各功能页共用的白卡片) ---- */
+.arch-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+
+/* 档案卡标题:小字 + 字距(结构信息,非装饰) */
+.arch-card-title {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 标题前的朱红索引条 */
+.arch-card-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 1.5px;
+  background: var(--seal-600);
+}
+
+/* 视图页整体:撑满高度,内部滚动 */
+.arch-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+/* 视图页主标题 */
+.arch-view-title {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink-900);
+  letter-spacing: 1px;
+}
+
+/* 视图页副标题说明 */
+.arch-view-desc {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 /* 盒模型统一为 border-box(宽高含内边距与边框) */

@@ -25,6 +25,9 @@ data/embedding_cache/
 *.log
 logs/
 
+# ---- 根级临时文件(测试用 docx 等,不入库)----
+/data/
+
 # ---- IDE ----
 .idea/
 .vscode/

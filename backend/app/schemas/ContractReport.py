@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
+from openai import BaseModel
 from sqlmodel import Field, SQLModel
 
 
@@ -20,3 +21,15 @@ class ContractReport(SQLModel, table=True):
     summary: str = "{}"          # JSON：违规统计
     report: str = "{}"           # JSON：完整报告
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class ReportDocxRequest(BaseModel):
+    """Word 报告下载请求:前端把体检报告 JSON 原样发回,后端渲染成 docx。"""
+    report: dict
+
+
+class ReportBindRequest(BaseModel):
+    """把已生成的体检报告绑定到指定会话(写摘要消息,供后续聊天追问)。"""
+    session_id: str
+    report: dict
+

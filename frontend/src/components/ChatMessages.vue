@@ -46,7 +46,7 @@ watch(
     <div v-if="!messages.length" class="empty-hint">
       <!-- 大印章 logo -->
       <div class="empty-seal" aria-hidden="true">权</div>
-      <h2 class="empty-title">打工人权益助手</h2>
+      <h2 class="empty-title">劳动智法助手</h2>
       <p class="empty-desc">算得清加班费,读得懂劳动法</p>
       <!-- 引导示例:一点即问 -->
       <div class="empty-examples">
